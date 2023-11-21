@@ -1,0 +1,73 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+
+struct message {
+    long msg_type;
+    char msg_text[100];
+};
+
+int main() {
+    key_t key;
+    int msgid;
+
+  
+    key = ftok("message_queue_example", 'A');
+
+    
+    msgid = msgget(key, 0666 | IPC_CREAT);
+    if (msgid == -1) {
+        perror("msgget");
+        exit(EXIT_FAILURE);
+    }
+
+    
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid > 0) {  // Parent process
+        struct message msg_send;
+
+        msg_send.msg_type = 1;
+
+        printf("Enter a message to send to the child process: ");
+        fgets(msg_send.msg_text, sizeof(msg_send.msg_text), stdin);
+
+ 
+        if (msgsnd(msgid, (void *)&msg_send, sizeof(msg_send.msg_text), 0) == -1) {
+            perror("msgsnd");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Message sent to the child process.\n");
+
+  
+        wait(NULL);
+    } else {  // Child process
+        struct message msg_receive;
+
+       
+        if (msgrcv(msgid, (void *)&msg_receive, sizeof(msg_receive.msg_text), 1, 0) == -1) {
+            perror("msgrcv");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Message received from the parent process: %s", msg_receive.msg_text);
+    }
+
+    if (msgctl(msgid, IPC_RMID, NULL) == -1) {
+        perror("msgctl");
+        exit(EXIT_FAILURE);
+    }
+
+    return 0;
+}
